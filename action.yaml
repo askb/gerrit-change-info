@@ -2,61 +2,66 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
-name: "️Gerrit change request info"
-description: "Returns a Gerrit change URL as required inputs that are used within releng reusable workflows"
+name: "️Gerrit change request information"
+description: "Gerrit change request information"
 
 inputs:
-  gerrit_url:
+  gerrit_change_url:
     description: "Gerrit Change URL"
     required: true
-  patchset_number:
+  gerrit_patchset_number:
     description: "Patchset Number (optional)"
     required: false
   ssh_user_name:
     description: "SSH Username"
     required: true
     type: string
-    default: ${{ vars.GERRIT_SSH_USER }}
+    default: ""
+  gerrit_known_hosts:
+    description: 'Known hosts entry for Gerrit'
+    required: true
+    default: ""
+  gerrit_server_port:
+    description: 'Gerrit server port'
+    required: false
+    default: "29418"
   ssh_private_key:
     description: 'SSH Private Key'
     required: true
     type: string
-    default: ${{ secrets.GERRIT_SSH_KEY }}
+    default: ""
 
 outputs:
   gerrit_branch:
-    description: "Description of output"
-    gerrit_branch: ${{ steps.gerrit.outputs.GERRIT_BRANCH }}
+    description: "Gerrit branch name"
+    value: ${{ steps.gerrit.outputs.GERRIT_BRANCH }}
   gerrit_change_id:
-    description: "Description of output"
-    gerrit_change_id: ${{ steps.gerrit.outputs.GERRIT_CHANGE_ID }}
-  gerrit_change_id:
-    description: "Description of output"
-    gerrit_patchset_number: ${{ steps.gerrit.outputs.GERRIT_PATCHSET_NUMBER }}
+    description: "Gerrit change ID"
+    value: ${{ steps.gerrit.outputs.GERRIT_CHANGE_ID }}
   gerrit_change_url:
-    description: "Description of output"
-    gerrit_change_url: ${{ steps.gerrit.outputs.GERRIT_CHANGE_URL }}
+    description: "Gerrit change URL"
+    value: ${{ steps.gerrit.outputs.GERRIT_CHANGE_URL }}
   gerrit_change_number:
-    description: "Description of output"
-    gerrit_change_number: ${{ steps.gerrit.outputs.GERRIT_CHANGE_NUMBER }}
+    description: "Gerrit change number"
+    value: ${{ steps.gerrit.outputs.GERRIT_CHANGE_NUMBER }}
   gerrit_event_type:
-    description: "Description of output"
-    gerrit_event_type: ${{ steps.gerrit.outputs.GERRIT_EVENT_TYPE }}
+    description: "Event type (hardcoded as comment_added)"
+    value: ${{ steps.gerrit.outputs.GERRIT_EVENT_TYPE }}
   gerrit_patchset_number:
-    description: "Description of output"
-    gerrit_patchset_number: ${{ steps.gerrit.outputs.GERRIT_PATCHSET_NUMBER }}
+    description: "Patchset number"
+    value: ${{ steps.gerrit.outputs.GERRIT_PATCHSET_NUMBER }}
   gerrit_patchset_revision:
-    description: "Description of output"
-    gerrit_patchset_revision: ${{ steps.gerrit.outputs.GERRIT_PATCHSET_REVISION }}
+    description: "Patchset revision SHA"
+    value: ${{ steps.gerrit.outputs.GERRIT_PATCHSET_REVISION }}
   gerrit_project:
-    description: "Description of output"
-    gerrit_project: ${{ steps.gerrit.outputs.GERRIT_PROJECT }}
+    description: "Gerrit project name"
+    value: ${{ steps.gerrit.outputs.GERRIT_PROJECT }}
   gerrit_refspec:
-    description: "Description of output"
-    gerrit_refspec: ${{ steps.gerrit.outputs.GERRIT_REFSPEC }}
+    description: "Refspec for the patchset"
+    value: ${{ steps.gerrit.outputs.GERRIT_REFSPEC }}
   gerrit_hostname:
-    description: "Description of output"
-    gerrit_hostname: ${{ steps.gerrit.outputs.GERRIT_HOSTNAME }}
+    description: "Gerrit server hostname"
+    value: ${{ steps.gerrit.outputs.GERRIT_HOSTNAME }}
 
 runs:
   using: "composite"
@@ -65,43 +70,57 @@ runs:
       uses: actions/checkout@v3
 
     - name: Install jq
+      shell: bash
       run: sudo apt-get update && sudo apt-get install -y jq
 
-    # - name: Set up SSH
-    #   uses: webfactory/ssh-agent@v0.7.0
-    #   with:
-    #     ssh-private-key: ${{ inputs.ssh_private_key }}
+    - name: Extract SSH inputs
+      id: ssh
+      shell: bash
+      run: |
+        chmod +x .github/scripts/extract_ssh_inputs.sh
+        .github/scripts/extract_ssh_inputs.sh "${{ inputs.gerrit_change_url }}"
+        source gerrit_ssh_info.env
+        echo "GERRIT_HOSTNAME=$GERRIT_HOSTNAME" >> $GITHUB_ENV
+        echo "GERRIT_PROJECT=$GERRIT_PROJECT" >> $GITHUB_ENV
+        echo "GERRIT_CHANGE_NUMBER=$GERRIT_CHANGE_NUMBER" >> $GITHUB_ENV
 
     - name: Setup SSH for Gerrit
       uses: shimataro/ssh-key-action@v2
       with:
-        key: ${{ secrets.GERRIT_SSH_PRIVKEY }}
+        key: ${{ inputs.ssh_private_key }}
         name: id_rsa
-        known_hosts: ${{ vars.GERRIT_KNOWN_HOSTS }}
+        known_hosts: ${{ inputs.gerrit_known_hosts }}
         config: |
-          Host ${{ vars.GERRIT_SERVER }}
-            User ${{ vars.GERRIT_SSH_USER }}
-            Port ${{ vars.GERRIT_SERVER_PORT }}
+          Host ${{ env.GERRIT_HOSTNAME }}
+            User ${{ inputs.ssh_user_name }}
+            Port ${{ inputs.gerrit_server_port }}
             IdentityFile ~/.ssh/id_rsa
 
     - name: Run Gerrit Query
       id: gerrit
       shell: bash
       run: |
-        # Validate inputs
-        if [[ -z "${{ inputs.gerrit_url }}" || "${{ inputs.ssh_user_name }}" || "${{ inputs.ssh_user_name }}" ]]; then
-          echo "Error: mandatory input is not set/configured"
+        chmod +x .github/scripts/gerrit_query.sh
+        .github/scripts/gerrit_query.sh "${{ inputs.gerrit_change_url }}" \
+            "${{ inputs.gerrit_patchset_number }}" "${{ inputs.ssh_user_name }}"
+
+        if [ -s "${GERRIT_CHANGE_NUMBER}.file" ]; then
+          while IFS= read -r envvar; do
+            echo "$envvar" >> $GITHUB_ENV
+            echo "$envvar" >> $GITHUB_OUTPUT
+          done < "${GERRIT_CHANGE_NUMBER}.file"
+        else
+          echo "Error: Gerrit query output file not found or empty."
           exit 1
         fi
 
-        chmod +x .github/scripts/gerrit_query.sh
-        ./.github/scripts/gerrit_query.sh "${{ inputs.gerrit_url }}" "${{ inputs.patchset_number }}" "${{ inputs.ssh_user_name }}"
-
-        # Export action outputs
-        if [ ! -s "${GERRIT_CHANGE_NUMBER}.file" ]; then
-          for envvar in $(cat "${GERRIT_CHANGE_NUMBER}.file"); do
-            echo "$envvar" >> $GITHUB_ENV;
-          done
+    - name: Validate file output
+      shell: bash
+      run: |
+        change_number="${{ steps.gerrit.outputs.GERRIT_CHANGE_NUMBER }}
+        if [ ! -f "$change_number".file ]; then
+          echo "Missing file output"
+          exit 1
         fi
 
     - name: Verify change-id
@@ -111,3 +130,41 @@ runs:
           echo "Error: Gerrit query failed or change not found."
           exit 1
         fi
+
+    - name: Export Gerrit outputs
+      shell: bash
+      run: |
+        echo "GERRIT_BRANCH=${{ steps.gerrit.outputs.GERRIT_BRANCH }}" >> "$GITHUB_ENV"
+        echo "GERRIT_CHANGE_ID=${{ steps.gerrit.outputs.GERRIT_CHANGE_ID }}" >> "$GITHUB_ENV"
+        echo "GERRIT_CHANGE_URL=${{ steps.gerrit.outputs.GERRIT_CHANGE_URL }}" >> "$GITHUB_ENV"
+        echo "GERRIT_CHANGE_NUMBER=${{ steps.gerrit.outputs.GERRIT_CHANGE_NUMBER }}" >> "$GITHUB_ENV"
+        echo "GERRIT_EVENT_TYPE=${{ steps.gerrit.outputs.GERRIT_EVENT_TYPE }}" >> "$GITHUB_ENV"
+        echo "GERRIT_PATCHSET_NUMBER=${{ steps.gerrit.outputs.GERRIT_PATCHSET_NUMBER }}" >> "$GITHUB_ENV"
+        echo "GERRIT_PATCHSET_REVISION=${{ steps.gerrit.outputs.GERRIT_PATCHSET_REVISION }}" >> "$GITHUB_ENV"
+        echo "GERRIT_PROJECT=${{ steps.gerrit.outputs.GERRIT_PROJECT }}" >> "$GITHUB_ENV"
+        echo "GERRIT_REFSPEC=${{ steps.gerrit.outputs.GERRIT_REFSPEC }}" >> "$GITHUB_ENV"
+        echo "GERRIT_HOSTNAME=${{ steps.gerrit.outputs.GERRIT_HOSTNAME }}" >> "$GITHUB_ENV"
+
+    # - name: Assert Gerrit outputs are set
+    #   shell: bash
+    #   run: |
+    #     required_outputs=(
+    #       GERRIT_BRANCH
+    #       GERRIT_CHANGE_ID
+    #       GERRIT_CHANGE_URL
+    #       GERRIT_CHANGE_NUMBER
+    #       GERRIT_EVENT_TYPE
+    #       GERRIT_PATCHSET_NUMBER
+    #       GERRIT_PATCHSET_REVISION
+    #       GERRIT_PROJECT
+    #       GERRIT_REFSPEC
+    #       GERRIT_HOSTNAME
+    #     )
+    #
+    #     for var in "${required_outputs[@]}"; do
+    #       value="${{ steps.gerrit.outputs.$var }}"
+    #       if [[ -z "$value" ]]; then
+    #         echo "Missing or empty output: $var"
+    #         exit 1
+    #       fi
+    #     done

@@ -26,16 +26,20 @@ jobs:
       - name: "Checkout repository"
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      # Perform setup prior to running test(s)
-      - name: "Testing setup step"
-        shell: bash
-        run: |
-          # Testing setup step
-          echo "Testing setup step"
-          echo "Testing setup step/summary output" >> "$GITHUB_STEP_SUMMARY"
+      - name: "Checkout Gerrit Change Info repository"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: "lfreleng-actions/gerrit-change-info"
+          path: "gerrit-change-info"
 
       - name: "Running local action: ${{ github.repository }}"
         uses: ./
+        with:
+          # yamllint disable-line rule:line-length
+          gerrit_change_url: "https://git.opendaylight.org/gerrit/c/releng/builder/+/111445"
+          gerrit_patchset_number: "6"
+          ssh_user_name: "${{ vars.GERRIT_SSH_USER }}"
+          ssh_private_key: "${{ secrets.GERRIT_SSH_KEY }}"
 
       - name: "Validating local action: ${{ github.repository }}"
         shell: bash
@@ -43,3 +47,21 @@ jobs:
           # Local action validation
           echo "Validating local action: ${{ github.repository }}"
           echo "Validation step summary output" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: SSH Key Error Test
+        uses: ./
+        with:
+          # yamllint disable-line rule:line-length
+          gerrit_change_url: "https://gerrit.example.org/c/sample-project/+/12345"
+          ssh_user_name: "jenkins"
+          ssh_private_key: ""
+        continue-on-error: true
+
+      - name: SSH Key Error Test
+        uses: ./
+        with:
+          # yamllint disable-line rule:line-length
+          gerrit_change_url: "https://gerrit.example.org/c/sample-project/+/12345"
+          ssh_user_name: "jenkins"
+          ssh_private_key: ""
+        continue-on-error: true

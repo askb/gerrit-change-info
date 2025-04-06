@@ -5,7 +5,9 @@
 
 # Export Gerrit change request information
 
-The gerrit-change-info action takes the Gerrit change URL and patchset number an input and returns information about Gerrit change request that is reused as input in other releng reusable workflows.
+The gerrit-change-info action takes the Gerrit change URL and patchset number
+as input and returns information about the Gerrit change request, which other
+releng reusable workflows then reuse as input.
 
 
 ## gerrit-change-info
@@ -79,8 +81,11 @@ GERRIT_HOSTNAME="git.opendaylight.org"
 
 ## Implementation Details
 
-Using a ssh connection to Gerrit server, the gerrit-query CLI command obtains and validates additional parameters that are required downstream reusable workflows.
+Using an SSH connection to the Gerrit server, the gerrit-query CLI command
+obtains and validates parameters required by downstream reusable
+workflows.
 
 ## Notes
 
-The purpose of the workflow reduces the large number of  manually entered inputs by the end use requiring to trigger workflows.  
+The purpose of the workflow reduces the large number of  manually entered
+inputs by the end use requiring to trigger workflows.
