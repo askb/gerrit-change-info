@@ -38,30 +38,3 @@ jobs:
           # yamllint disable-line rule:line-length
           gerrit_change_url: "https://git.opendaylight.org/gerrit/c/releng/builder/+/111445"
           gerrit_patchset_number: "6"
-          ssh_user_name: "${{ vars.GERRIT_SSH_USER }}"
-          ssh_private_key: "${{ secrets.GERRIT_SSH_KEY }}"
-
-      - name: "Validating local action: ${{ github.repository }}"
-        shell: bash
-        run: |
-          # Local action validation
-          echo "Validating local action: ${{ github.repository }}"
-          echo "Validation step summary output" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: SSH Key Error Test
-        uses: ./
-        with:
-          # yamllint disable-line rule:line-length
-          gerrit_change_url: "https://gerrit.example.org/c/sample-project/+/12345"
-          ssh_user_name: "jenkins"
-          ssh_private_key: ""
-        continue-on-error: true
-
-      - name: SSH Key Error Test
-        uses: ./
-        with:
-          # yamllint disable-line rule:line-length
-          gerrit_change_url: "https://gerrit.example.org/c/sample-project/+/12345"
-          ssh_user_name: "jenkins"
-          ssh_private_key: ""
-        continue-on-error: true
