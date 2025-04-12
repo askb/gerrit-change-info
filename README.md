@@ -9,7 +9,6 @@ The gerrit-change-info action takes the Gerrit change URL and patchset number
 as input and returns information about the Gerrit change request, which other
 releng reusable workflows then reuse as input.
 
-
 ## gerrit-change-info
 
 ## Usage Example
